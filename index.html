@@ -3,27 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Conectando con Spotify</title>
+  <title>Conectando...</title>
   <style>
     * { box-sizing: border-box; margin:0; padding:0; }
     body {
-      background: #eef1e2;
-      color: #0c0b08;
-      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #000;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
       min-height: 100vh;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 24px;
       text-align: center;
     }
-    h1 { font-size: 1.5em; margin-bottom: 14px; font-weight: 900; text-transform: uppercase; }
-    p { color: #2c2a22; margin-bottom: 10px; font-size: 1em; line-height: 1.4; max-width: 40ch; }
+    h1 { font-size: 1.3em; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 8px #00ff41; }
+    p { opacity: 0.85; margin-bottom: 10px; font-size: 0.95em; line-height: 1.4; max-width: 40ch; }
     .spinner {
-      width: 36px; height: 36px; border: 4px solid #0c0b0822;
-      border-top-color: #0c0b08; border-radius: 50%;
+      width: 32px; height: 32px; border: 3px solid #00ff4133;
+      border-top-color: #00ff41; border-radius: 50%;
       animation: girar 0.8s linear infinite; margin-bottom: 18px;
     }
     @keyframes girar { to { transform: rotate(360deg); } }
-    .aviso-error { color: #b3261e; }
+    .aviso-error { color: #ff3b3b; text-shadow: 0 0 8px #ff3b3b; }
   </style>
 </head>
 <body>
@@ -34,21 +34,16 @@
   </div>
 
   <script>
-    // ---------------------------------------------------------------
-    // CONFIGURACIÓN: pon aquí la URL de tu Firebase Realtime Database
-    // (la que copiaste en el Paso B de la guía, terminada en "/")
-    // ---------------------------------------------------------------
     const FIREBASE_URL = "https://perfil-musical-esp32-default-rtdb.firebaseio.com/";
 
     const parametros = new URLSearchParams(window.location.search);
     const codigo = parametros.get("code");
-    const sesion = parametros.get("state"); // El ESP32 manda un "state" único por sesión
+    const sesion = parametros.get("state");
     const error = parametros.get("error");
     const contenedor = document.getElementById("contenido");
 
     async function guardarEnFirebase() {
       try {
-        // Guardamos el código bajo una ruta única: /sesiones/<state>.json
         const url = FIREBASE_URL + "sesiones/" + sesion + ".json";
         const respuesta = await fetch(url, {
           method: "PUT",
@@ -58,7 +53,7 @@
 
         if (respuesta.ok) {
           contenedor.innerHTML = `
-            <h1>✅ Listo</h1>
+            <h1>&gt; CONEXIÓN OK</h1>
             <p>Ya puedes regresar a la pantalla del dispositivo. Se conectará solo en unos segundos.</p>
           `;
         } else {
@@ -66,7 +61,7 @@
         }
       } catch (e) {
         contenedor.innerHTML = `
-          <h1 class="aviso-error">❌ No se pudo guardar</h1>
+          <h1 class="aviso-error">&gt; ERROR</h1>
           <p>Hubo un problema de conexión. Vuelve a intentarlo desde el dispositivo.</p>
         `;
       }
@@ -74,17 +69,18 @@
 
     if (error) {
       contenedor.innerHTML = `
-        <h1 class="aviso-error">❌ No se completó el login</h1>
+        <h1 class="aviso-error">&gt; LOGIN CANCELADO</h1>
         <p>Spotify reportó: ${error}. Vuelve a intentarlo desde el dispositivo.</p>
       `;
     } else if (codigo && sesion) {
       guardarEnFirebase();
     } else {
       contenedor.innerHTML = `
-        <h1 class="aviso-error">❌ Falta información</h1>
+        <h1 class="aviso-error">&gt; FALTA INFORMACIÓN</h1>
         <p>Esta página solo funciona si llegaste aquí después de autorizar la app en Spotify desde el dispositivo.</p>
       `;
     }
   </script>
 </body>
 </html>
+
