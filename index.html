@@ -3,71 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Código de Spotify</title>
+  <title>Conectando con Spotify</title>
   <style>
     * { box-sizing: border-box; margin:0; padding:0; }
     body {
-      background: #15131a;
-      color: #f4ede4;
-      font-family: Arial, sans-serif;
+      background: #eef1e2;
+      color: #0c0b08;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
       min-height: 100vh;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 24px;
       text-align: center;
     }
-    h1 { font-size: 1.4em; margin-bottom: 16px; color: #ffd166; }
-    p { color: #b9aebf; margin-bottom: 20px; font-size: 0.95em; line-height: 1.4; }
-    .caja-codigo {
-      background: #211d28; border: 1px solid #4a3f52; border-radius: 12px;
-      padding: 20px; max-width: 480px; width: 100%; word-break: break-all;
-      font-family: monospace; font-size: 1em; margin-bottom: 20px;
-      user-select: all; -webkit-user-select: all;
+    h1 { font-size: 1.5em; margin-bottom: 14px; font-weight: 900; text-transform: uppercase; }
+    p { color: #2c2a22; margin-bottom: 10px; font-size: 1em; line-height: 1.4; max-width: 40ch; }
+    .spinner {
+      width: 36px; height: 36px; border: 4px solid #0c0b0822;
+      border-top-color: #0c0b08; border-radius: 50%;
+      animation: girar 0.8s linear infinite; margin-bottom: 18px;
     }
-    .boton {
-      display: inline-block; padding: 14px 28px;
-      background: linear-gradient(90deg, #ff8a5c, #ffd166); color: #15131a;
-      border: none; border-radius: 30px; font-weight: bold; font-size: 1em;
-      cursor: pointer; max-width: 480px; width: 100%;
-    }
-    .aviso-error { color: #ff8a5c; }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    .aviso-error { color: #b3261e; }
   </style>
 </head>
 <body>
   <div id="contenido">
-    <h1>Cargando...</h1>
+    <div class="spinner"></div>
+    <h1>Procesando...</h1>
+    <p>No cierres esta pestaña todavía.</p>
   </div>
 
   <script>
-    // Leemos los parámetros que Spotify agregó a la URL después de "?"
+    // ---------------------------------------------------------------
+    // CONFIGURACIÓN: pon aquí la URL de tu Firebase Realtime Database
+    // (la que copiaste en el Paso B de la guía, terminada en "/")
+    // ---------------------------------------------------------------
+    const FIREBASE_URL = "https://perfil-musical-esp32-default-rtdb.firebaseio.com/";
+
     const parametros = new URLSearchParams(window.location.search);
     const codigo = parametros.get("code");
+    const sesion = parametros.get("state"); // El ESP32 manda un "state" único por sesión
     const error = parametros.get("error");
     const contenedor = document.getElementById("contenido");
 
-    if (codigo) {
-      contenedor.innerHTML = `
-        <h1>✅ Código obtenido</h1>
-        <p>Copia este código completo y pégalo en la página del dispositivo (ESP32):</p>
-        <div class="caja-codigo" id="cajaCodigo">${codigo}</div>
-        <button class="boton" onclick="copiarCodigo()">Copiar código</button>
-      `;
-    } else if (error) {
+    async function guardarEnFirebase() {
+      try {
+        // Guardamos el código bajo una ruta única: /sesiones/<state>.json
+        const url = FIREBASE_URL + "sesiones/" + sesion + ".json";
+        const respuesta = await fetch(url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ codigo: codigo, timestamp: Date.now() })
+        });
+
+        if (respuesta.ok) {
+          contenedor.innerHTML = `
+            <h1>✅ Listo</h1>
+            <p>Ya puedes regresar a la pantalla del dispositivo. Se conectará solo en unos segundos.</p>
+          `;
+        } else {
+          throw new Error("Firebase respondió con error");
+        }
+      } catch (e) {
+        contenedor.innerHTML = `
+          <h1 class="aviso-error">❌ No se pudo guardar</h1>
+          <p>Hubo un problema de conexión. Vuelve a intentarlo desde el dispositivo.</p>
+        `;
+      }
+    }
+
+    if (error) {
       contenedor.innerHTML = `
         <h1 class="aviso-error">❌ No se completó el login</h1>
         <p>Spotify reportó: ${error}. Vuelve a intentarlo desde el dispositivo.</p>
       `;
+    } else if (codigo && sesion) {
+      guardarEnFirebase();
     } else {
       contenedor.innerHTML = `
-        <h1 class="aviso-error">❌ No se encontró ningún código</h1>
-        <p>Esta página solo funciona si llegaste aquí después de autorizar la app en Spotify.</p>
+        <h1 class="aviso-error">❌ Falta información</h1>
+        <p>Esta página solo funciona si llegaste aquí después de autorizar la app en Spotify desde el dispositivo.</p>
       `;
-    }
-
-    function copiarCodigo() {
-      const texto = document.getElementById("cajaCodigo").innerText;
-      navigator.clipboard.writeText(texto).then(() => {
-        alert("¡Código copiado! Ahora pégalo en la página del ESP32.");
-      });
     }
   </script>
 </body>
