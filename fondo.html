@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fondo FRECUENCIA</title>
+<style>
+  body { background:#000; color:#39ff14; font-family: monospace; text-align:center; padding:20px; }
+  h2 { letter-spacing:2px; }
+  input[type=file] { color:#39ff14; margin:16px 0; }
+  button { background:#000; color:#39ff14; border:2px solid #39ff14; padding:10px 20px;
+           font-family: monospace; font-size:16px; cursor:pointer; margin-top:10px; }
+  button:disabled { opacity:0.4; }
+  #preview { max-width:280px; margin:16px auto; display:block; border:2px solid #39ff14; }
+  #estado { margin-top:14px; min-height:20px; }
+</style>
+</head>
+<body>
+<h2>[ FONDO PERSONALIZADO ]</h2>
+<p>Elige una foto. Se recorta y comprime automaticamente a 320x240 antes de subir.</p>
+<p style="opacity:0.6;font-size:13px;">No hace falta estar en la misma red WiFi que el dispositivo.</p>
+
+<input type="file" id="archivo" accept="image/*">
+<canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+<img id="preview" style="display:none;">
+<br>
+<button id="btnSubir" onclick="subir()" disabled>SUBIR FOTO</button>
+<div id="estado"></div>
+
+<script>
+const FIREBASE_URL = "https://perfil-musical-esp32-default-rtdb.firebaseio.com/fondo.json";
+
+let blobFinal = null;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const preview = document.getElementById('preview');
+const btnSubir = document.getElementById('btnSubir');
+const estado = document.getElementById('estado');
+
+document.getElementById('archivo').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const img = new Image();
+  img.onload = function() {
+    // Recorte tipo "cover" a 320x240 (llena el marco sin deformar)
+    const targetW = 320, targetH = 240;
+    const srcRatio = img.width / img.height;
+    const targetRatio = targetW / targetH;
+    let sx, sy, sw, sh;
+
+    if (srcRatio > targetRatio) {
+      sh = img.height;
+      sw = sh * targetRatio;
+      sx = (img.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = img.width;
+      sh = sw / targetRatio;
+      sx = 0;
+      sy = (img.height - sh) / 2;
+    }
+
+    ctx.clearRect(0, 0, targetW, targetH);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, targetW, targetH);
+
+    preview.src = canvas.toDataURL('image/jpeg', 0.7);
+    preview.style.display = 'block';
+
+    canvas.toBlob(function(blob) {
+      blobFinal = blob;
+      btnSubir.disabled = false;
+      estado.innerText = 'Lista para subir (' + Math.round(blob.size / 1024) + ' KB)';
+    }, 'image/jpeg', 0.7);
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(',')[1]); // quita "data:...;base64,"
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function subir() {
+  if (!blobFinal) {
+    estado.innerText = 'Selecciona una foto primero';
+    return;
+  }
+  btnSubir.disabled = true;
+  estado.innerText = 'Subiendo...';
+
+  try {
+    const base64 = await blobToBase64(blobFinal);
+    const payload = { imagen: base64, ts: Date.now() };
+
+    const resp = await fetch(FIREBASE_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+
+    estado.innerText = 'Listo! Tu dispositivo la mostrara en unos segundos.';
+  } catch (err) {
+    estado.innerText = 'Error al subir: ' + err.message;
+    btnSubir.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
