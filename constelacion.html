@@ -2,78 +2,212 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#030503">
 <title>Constelación de Frecuencias</title>
 <style>
+  :root {
+    --acento: #7dffb0;
+    --fondo: #030503;
+    --panel: #05130a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0; padding: 0; width: 100%; height: 100%;
-    background: #030503;
+    background: var(--fondo);
     overflow: hidden;
     font-family: 'Courier New', monospace;
-  }
-  #lienzo { display: block; width: 100vw; height: 100vh; }
-
-  #titulo {
-    position: fixed; top: 14px; left: 18px;
-    color: #7dffb0; letter-spacing: 3px; font-size: 13px;
-    text-shadow: 0 0 8px rgba(125,255,176,0.6);
-    pointer-events: none;
-  }
-  #titulo span { display:block; font-size: 10px; color: #4a8a63; letter-spacing: 2px; margin-top: 3px; }
-
-  #contador {
-    position: fixed; top: 14px; right: 18px;
-    color: #7dffb0; font-size: 12px; text-align: right;
-    text-shadow: 0 0 8px rgba(125,255,176,0.6);
-    pointer-events: none;
-  }
-  #contador b { font-size: 20px; display:block; }
-
-  #tooltip {
-    position: fixed; pointer-events: none;
-    background: rgba(3,10,5,0.92);
-    border: 1px solid #7dffb0;
     color: #d8ffe6;
-    padding: 8px 12px; font-size: 12px; line-height: 1.5;
-    border-radius: 2px; max-width: 220px;
-    box-shadow: 0 0 14px rgba(125,255,176,0.35);
-    display: none; z-index: 10;
   }
-  #tooltip b { color: #7dffb0; }
-  #tooltip .arq { font-size: 10px; opacity: 0.75; }
+  #lienzo { display: block; width: 100vw; height: 100vh; touch-action: none; }
 
-  #leyenda {
-    position: fixed; bottom: 14px; left: 18px;
-    font-size: 10px; color: #6fa384; letter-spacing: 1px;
-    display: flex; gap: 14px; pointer-events: none;
+  /* Vinieta sutil para que el centro respire y los bordes se oscurezcan */
+  #vineta {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%);
   }
-  #leyenda div { display: flex; align-items: center; gap: 5px; }
-  #leyenda i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* ---------- Cabecera ---------- */
+  #cabecera {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: max(12px, env(safe-area-inset-top)) 14px 8px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none;
+  }
+  #titulo { color: var(--acento); letter-spacing: 2px; font-size: clamp(10px, 3vw, 13px); font-weight: bold; text-shadow: 0 0 8px rgba(125,255,176,0.6); }
+  #titulo span { display:block; font-size: clamp(8px, 2.4vw, 10px); color: #4a8a63; letter-spacing: 1.5px; margin-top: 3px; font-weight: normal; }
+  #contador { text-align: right; font-size: 10px; color: #6fa384; }
+  #contador b { font-size: clamp(16px, 5vw, 20px); display:block; color: var(--acento); text-shadow: 0 0 8px rgba(125,255,176,0.6); }
+
+  /* ---------- Leyenda inferior ---------- */
+  #leyenda {
+    position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 0; right: 0;
+    display: flex; justify-content: center; gap: clamp(8px,3vw,16px);
+    font-size: clamp(8px, 2.4vw, 10px); color: #6fa384; letter-spacing: 0.5px;
+    pointer-events: none; flex-wrap: wrap; padding: 0 8px;
+  }
+  #leyenda div { display: flex; align-items: center; gap: 4px; }
+  #leyenda i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px currentColor; }
 
   #estadoConexion {
-    position: fixed; bottom: 14px; right: 18px;
-    font-size: 10px; color: #4a8a63; letter-spacing: 1px;
+    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 0; right: 0;
+    text-align: center; font-size: 9px; color: #4a8a63; letter-spacing: 1px;
     pointer-events: none;
   }
+
+  #hint {
+    position: fixed; left: 50%; bottom: 54px; transform: translateX(-50%);
+    font-size: 10px; color: var(--acento); letter-spacing: 1px;
+    background: rgba(3,10,5,0.75); border: 1px solid rgba(125,255,176,0.35);
+    padding: 6px 12px; border-radius: 20px; pointer-events: none;
+    opacity: 0; transition: opacity 0.5s;
+  }
+  #hint.visible { opacity: 1; }
+
+  /* ---------- Backdrop + hoja modal ---------- */
+  #backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 20;
+  }
+  #backdrop.visible { opacity: 1; pointer-events: auto; }
+
+  #hoja {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 21;
+    max-height: 86vh;
+    background: linear-gradient(180deg, var(--panel), #020402 60%);
+    border-top: 2px solid var(--acento);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.6), 0 0 24px -6px var(--acento);
+    transform: translateY(105%);
+    transition: transform 0.35s cubic-bezier(.16,1,.3,1);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  #hoja.visible { transform: translateY(0); }
+
+  #manija { width: 40px; height: 4px; background: #2a4536; border-radius: 4px; margin: 10px auto 4px; }
+
+  #cerrar {
+    position: absolute; top: 10px; right: 12px;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(255,255,255,0.06); color: #9fd6b4;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; border: 1px solid rgba(255,255,255,0.12);
+  }
+
+  #perfilCabecera {
+    padding: 8px 20px 14px; text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  #perfilIcono {
+    width: 56px; height: 56px; border-radius: 50%; margin: 4px auto 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: bold; color: #04120a;
+    background: var(--acento);
+    box-shadow: 0 0 22px -2px var(--acento);
+  }
+  #perfilNombre { font-size: 19px; font-weight: bold; color: #f2fff6; letter-spacing: 0.5px; }
+  #perfilSubtipo { font-size: 12px; color: var(--acento); margin-top: 4px; letter-spacing: 1px; }
+
+  #perfilDatos {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+    padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .chip {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px; padding: 6px 12px; font-size: 11px; color: #cfe9db;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .chip b { color: var(--acento); }
+
+  #seccionCanciones { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .tituloSeccion { font-size: 10px; letter-spacing: 2px; color: #4a8a63; margin-bottom: 10px; }
+  .filaCancion { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12.5px; }
+  .filaCancion .num { color: var(--acento); font-weight: bold; width: 16px; flex-shrink: 0; }
+  .filaCancion .info { overflow: hidden; }
+  .filaCancion .cancion { color: #f2fff6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .filaCancion .artista { color: #6fa384; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  #seccionMensajes { padding: 14px 20px 4px; }
+  #listaMensajes { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; max-height: 220px; overflow-y: auto; }
+  .mensaje {
+    background: rgba(255,255,255,0.04); border-left: 3px solid var(--acento);
+    border-radius: 4px; padding: 8px 10px;
+  }
+  .mensaje .autor { font-size: 10.5px; color: var(--acento); font-weight: bold; }
+  .mensaje .texto { font-size: 12.5px; color: #e4fbec; margin-top: 3px; word-wrap: break-word; white-space: pre-wrap; }
+  .mensaje .fecha { font-size: 9px; color: #4a8a63; margin-top: 4px; }
+  #sinMensajes { font-size: 11.5px; color: #4a8a63; text-align: center; padding: 10px 0; }
+
+  #formMensaje { display: flex; flex-direction: column; gap: 8px; padding-bottom: 6px; }
+  #inputAutor, #inputTexto {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px; color: #f2fff6; font-family: inherit; padding: 9px 11px; font-size: 13px;
+  }
+  #inputTexto { resize: none; height: 60px; }
+  #inputAutor::placeholder, #inputTexto::placeholder { color: #4a8a63; }
+  #filaEnvio { display: flex; justify-content: space-between; align-items: center; }
+  #contadorChars { font-size: 10px; color: #4a8a63; }
+  #btnEnviar {
+    background: var(--acento); color: #04120a; border: none; border-radius: 20px;
+    padding: 9px 18px; font-family: inherit; font-weight: bold; font-size: 12px;
+    letter-spacing: 1px; -webkit-tap-highlight-color: transparent;
+  }
+  #btnEnviar:disabled { opacity: 0.35; }
+  #estadoEnvio { font-size: 10.5px; color: var(--acento); text-align: center; min-height: 14px; }
 </style>
 </head>
 <body>
 
 <canvas id="lienzo"></canvas>
+<div id="vineta"></div>
 
-<div id="titulo">
-  [ CONSTELACION DE FRECUENCIAS ]
-  <span>micelio colectivo · cada spotify es una persona</span>
-</div>
-<div id="contador"><b id="numPersonas">0</b>personas conectadas</div>
-<div id="tooltip"></div>
-<div id="leyenda">
-  <div><i style="background:#FF6919;"></i>Exploradores</div>
-  <div><i style="background:#19C6FF;"></i>Diplomaticos</div>
-  <div><i style="background:#3AFF6B;"></i>Centinelas</div>
-  <div><i style="background:#B54DFF;"></i>Analistas</div>
+<div id="cabecera">
+  <div id="titulo">[ CONSTELACION ]<span>micelio colectivo · cada spotify una persona</span></div>
+  <div id="contador"><b id="numPersonas">0</b>conectados</div>
 </div>
 <div id="estadoConexion">conectando...</div>
+<div id="hint">toca un nodo para ver su perfil ✦</div>
+<div id="leyenda">
+  <div><i style="background:#FF6919;color:#FF6919;"></i>Exploradores</div>
+  <div><i style="background:#19C6FF;color:#19C6FF;"></i>Diplomaticos</div>
+  <div><i style="background:#3AFF6B;color:#3AFF6B;"></i>Centinelas</div>
+  <div><i style="background:#B54DFF;color:#B54DFF;"></i>Analistas</div>
+</div>
+
+<div id="backdrop"></div>
+<div id="hoja">
+  <div id="manija"></div>
+  <div id="cerrar">✕</div>
+
+  <div id="perfilCabecera">
+    <div id="perfilIcono"></div>
+    <div id="perfilNombre"></div>
+    <div id="perfilSubtipo"></div>
+  </div>
+
+  <div id="perfilDatos"></div>
+
+  <div id="seccionCanciones">
+    <div class="tituloSeccion">FRECUENCIAS FAVORITAS</div>
+    <div id="listaCanciones"></div>
+  </div>
+
+  <div id="seccionMensajes">
+    <div class="tituloSeccion">MENSAJES <span id="numMensajes"></span></div>
+    <div id="listaMensajes"></div>
+    <form id="formMensaje">
+      <input id="inputAutor" type="text" maxlength="24" placeholder="Tu nombre (opcional)">
+      <textarea id="inputTexto" maxlength="240" placeholder="Dejale un mensaje a esta frecuencia..."></textarea>
+      <div id="filaEnvio">
+        <span id="contadorChars">240</span>
+        <button id="btnEnviar" type="submit">ENVIAR ✦</button>
+      </div>
+      <div id="estadoEnvio"></div>
+    </form>
+  </div>
+</div>
 
 <script>
 /* =====================================================================
@@ -85,46 +219,59 @@
    micelio de un tipo de apareamiento compatible -- aqui, las hifas
    solo conectan nodos cuyos arquetipos son compatibles, tal como en
    el dispositivo fisico (Exploradores<->Diplomaticos,
-   Centinelas<->Analistas).
+   Centinelas<->Analistas). Tocar un nodo abre su perfil completo y
+   permite dejarle un mensaje, visible para todos.
    ===================================================================== */
 
-const FIREBASE_URL = "https://perfil-musical-esp32-default-rtdb.firebaseio.com/constelacion";
+const FIREBASE_BASE = "https://perfil-musical-esp32-default-rtdb.firebaseio.com";
 
 const NOMBRE_ARQUETIPO = ["Exploradores", "Diplomaticos", "Centinelas", "Analistas"];
 const COLOR_ARQUETIPO = ["#FF6919", "#19C6FF", "#3AFF6B", "#B54DFF"];
+const NOMBRES_SUBTIPO = ["El Chispa","El Rebelde","El Artesano","El Artista","El Soñador","El Mediador","El Poeta","El Inspirador","El Guardian","El Organizador","El Tradicionalista","El Anfitrion","El Estratega","El Filosofo","El Inventor","El Arquitecto"];
 
-// Misma regla de compatibilidad que perfiles.h -> sonArquetiposCompatibles()
 function sonCompatibles(a, b) {
   return (a === 0 && b === 1) || (a === 1 && b === 0) ||
          (a === 2 && b === 3) || (a === 3 && b === 2);
 }
+function colorArquetipo(idx) { return COLOR_ARQUETIPO[idx] || "#7dffb0"; }
+function banderaEmoji(codigoPais) {
+  if (!codigoPais || codigoPais.length !== 2) return "";
+  const base = 127397;
+  return String.fromCodePoint(...[...codigoPais.toUpperCase()].map(c => c.charCodeAt(0) + base));
+}
+function tiempoRelativo(ts) {
+  if (!ts) return "";
+  const seg = Math.floor((Date.now() - ts) / 1000);
+  if (seg < 60) return "hace un momento";
+  if (seg < 3600) return `hace ${Math.floor(seg/60)} min`;
+  if (seg < 86400) return `hace ${Math.floor(seg/3600)} h`;
+  return `hace ${Math.floor(seg/86400)} d`;
+}
 
+// ---------------------------------------------------------------------
+// Lienzo
+// ---------------------------------------------------------------------
 const canvas = document.getElementById('lienzo');
 const ctx = canvas.getContext('2d');
-let W, H;
+let W, H, DPR;
 function ajustarTamano() {
-  W = canvas.width = window.innerWidth;
-  H = canvas.height = window.innerHeight;
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + "px"; canvas.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 window.addEventListener('resize', ajustarTamano);
 ajustarTamano();
 
-// ---------------------------------------------------------------------
-// Estado: nodos (personas) indexados por clave de Spotify
-// ---------------------------------------------------------------------
-let nodos = {};        // clave -> { x,y,vx,vy, arquetipo, nombre, cancion, artista, radio, radioObjetivo, nacimiento, hifas:[destinoClave...], glowPulso }
-let hifasActivas = []; // conexiones vivas: {a, b, progreso, vidaParticula[]}
-let tiempoInicio = performance.now();
-
-function colorArquetipo(idx) { return COLOR_ARQUETIPO[idx] || "#7dffb0"; }
+let nodos = {};
+let hifasActivas = [];
 
 function hashPosicionInicial(clave) {
-  // Posicion de "germinacion" pseudoaleatoria pero estable por clave,
-  // para que cada nodo siempre nazca cerca de la misma zona del mapa.
   let h = 0;
   for (let i = 0; i < clave.length; i++) h = (h * 31 + clave.charCodeAt(i)) >>> 0;
   const ang = (h % 360) * Math.PI / 180;
-  const rad = 60 + (h % 200);
+  const rad = 50 + (h % 150);
   return { x: W / 2 + Math.cos(ang) * rad, y: H / 2 + Math.sin(ang) * rad };
 }
 
@@ -133,34 +280,21 @@ function crearONodo(clave, datos) {
   const arquetipoNuevo = datos.arquetipoIndex || 0;
 
   if (existente) {
-    // Reaparicion: la persona repitio el test -> "muta" de arquetipo
     existente.arquetipoAnterior = existente.arquetipo;
     existente.arquetipo = arquetipoNuevo;
-    existente.subtipoIndex = datos.subtipoIndex || 0;
-    existente.nombre = datos.nombre || existente.nombre;
-    existente.cancion = datos.cancion || "";
-    existente.artista = datos.artista || "";
-    existente.mutando = 1.0; // dispara animacion de transicion de color
+    existente.datos = datos;
+    existente.mutando = 1.0;
     existente.radioObjetivo = 12;
     return existente;
   }
 
   const pos = hashPosicionInicial(clave);
   const nodo = {
-    clave,
-    x: pos.x, y: pos.y,
-    vx: (Math.random() - 0.5) * 0.15,
-    vy: (Math.random() - 0.5) * 0.15,
-    arquetipo: arquetipoNuevo,
-    arquetipoAnterior: arquetipoNuevo,
-    subtipoIndex: datos.subtipoIndex || 0,
-    nombre: datos.nombre || "Anonimo",
-    cancion: datos.cancion || "",
-    artista: datos.artista || "",
-    radio: 0,
-    radioObjetivo: 10,
-    nacimiento: performance.now(),
-    mutando: 0,
+    clave, x: pos.x, y: pos.y,
+    vx: (Math.random() - 0.5) * 0.15, vy: (Math.random() - 0.5) * 0.15,
+    arquetipo: arquetipoNuevo, arquetipoAnterior: arquetipoNuevo,
+    datos, radio: 0, radioObjetivo: 10,
+    nacimiento: performance.now(), mutando: 0,
     glowFase: Math.random() * Math.PI * 2
   };
   nodos[clave] = nodo;
@@ -180,11 +314,6 @@ function reconstruirHifas() {
   }
 }
 
-// ---------------------------------------------------------------------
-// Simulacion tipo "micelio": repulsion suave entre todos los nodos,
-// atraccion leve entre nodos conectados por hifas compatibles, y una
-// leve atraccion hacia el centro para que la red no se disperse.
-// ---------------------------------------------------------------------
 function actualizarFisica() {
   const claves = Object.keys(nodos);
   const n = claves.length;
@@ -193,7 +322,6 @@ function actualizarFisica() {
     const A = nodos[claves[i]];
     let fx = (W / 2 - A.x) * 0.0006;
     let fy = (H / 2 - A.y) * 0.0006;
-
     for (let j = 0; j < n; j++) {
       if (i === j) continue;
       const B = nodos[claves[j]];
@@ -201,8 +329,7 @@ function actualizarFisica() {
       const d2 = dx * dx + dy * dy + 0.01;
       const d = Math.sqrt(d2);
       const rep = 900 / d2;
-      fx += (dx / d) * rep;
-      fy += (dy / d) * rep;
+      fx += (dx / d) * rep; fy += (dy / d) * rep;
     }
     A.fx = fx; A.fy = fy;
   }
@@ -212,190 +339,314 @@ function actualizarFisica() {
     if (!A || !B) return;
     const dx = B.x - A.x, dy = B.y - A.y;
     const d = Math.sqrt(dx * dx + dy * dy) + 0.01;
-    const objetivo = 140; // distancia de reposo de una hifa
-    const fuerza = (d - objetivo) * 0.0012;
+    const fuerza = (d - 130) * 0.0012;
     A.fx += (dx / d) * fuerza; A.fy += (dy / d) * fuerza;
     B.fx -= (dx / d) * fuerza; B.fy -= (dy / d) * fuerza;
   });
 
   claves.forEach(k => {
     const A = nodos[k];
-    A.vx = (A.vx + A.fx) * 0.9;
-    A.vy = (A.vy + A.fy) * 0.9;
-    A.x += A.vx;
-    A.y += A.vy;
-    A.x = Math.max(30, Math.min(W - 30, A.x));
-    A.y = Math.max(60, Math.min(H - 40, A.y));
-
+    A.vx = (A.vx + A.fx) * 0.9; A.vy = (A.vy + A.fy) * 0.9;
+    A.x += A.vx; A.y += A.vy;
+    A.x = Math.max(26, Math.min(W - 26, A.x));
+    A.y = Math.max(70, Math.min(H - 70, A.y));
     A.radio += (A.radioObjetivo - A.radio) * 0.08;
     if (A.mutando > 0) A.mutando -= 0.012;
   });
 }
 
-// ---------------------------------------------------------------------
-// Dibujo: fondo tipo sustrato oscuro, hifas curvas con particulas
-// viajando (flujo de nutrientes), nodos glowing tipo cuerpo fructifero
-// ---------------------------------------------------------------------
 function dibujarHifa(A, B, part) {
   const mx = (A.x + B.x) / 2 + Math.sin((A.x + B.y) * 0.01) * 18;
   const my = (A.y + B.y) / 2 + Math.cos((A.y + B.x) * 0.01) * 18;
-
   const grad = ctx.createLinearGradient(A.x, A.y, B.x, B.y);
   grad.addColorStop(0, colorArquetipo(A.arquetipo) + "55");
   grad.addColorStop(1, colorArquetipo(B.arquetipo) + "55");
+  ctx.strokeStyle = grad; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.quadraticCurveTo(mx, my, B.x, B.y); ctx.stroke();
 
-  ctx.strokeStyle = grad;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(A.x, A.y);
-  ctx.quadraticCurveTo(mx, my, B.x, B.y);
-  ctx.stroke();
-
-  // particula de "espora" viajando por la hifa
   const t = part;
   const x = (1 - t) * (1 - t) * A.x + 2 * (1 - t) * t * mx + t * t * B.x;
   const y = (1 - t) * (1 - t) * A.y + 2 * (1 - t) * t * my + t * t * B.y;
-  ctx.beginPath();
-  ctx.fillStyle = "#eafff2";
-  ctx.shadowColor = "#eafff2";
-  ctx.shadowBlur = 6;
-  ctx.arc(x, y, 1.6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  ctx.beginPath(); ctx.fillStyle = "#eafff2"; ctx.shadowColor = "#eafff2"; ctx.shadowBlur = 6;
+  ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
 }
 
 function dibujarNodo(A, tiempoMs) {
   const edad = tiempoMs - A.nacimiento;
   const glow = 0.6 + 0.4 * Math.sin(tiempoMs * 0.002 + A.glowFase);
-
   let colorBase = colorArquetipo(A.arquetipo);
-  if (A.mutando > 0) {
-    // fundido entre el color anterior y el nuevo mientras "muta"
-    colorBase = colorArquetipo(Math.random() < A.mutando ? A.arquetipoAnterior : A.arquetipo);
-  }
+  if (A.mutando > 0) colorBase = colorArquetipo(Math.random() < A.mutando ? A.arquetipoAnterior : A.arquetipo);
 
   const r = A.radio;
   const halo = ctx.createRadialGradient(A.x, A.y, 0, A.x, A.y, r * 4);
-  halo.addColorStop(0, colorBase + "66");
-  halo.addColorStop(1, colorBase + "00");
-  ctx.fillStyle = halo;
-  ctx.beginPath();
-  ctx.arc(A.x, A.y, r * 4 * glow, 0, Math.PI * 2);
-  ctx.fill();
+  halo.addColorStop(0, colorBase + "66"); halo.addColorStop(1, colorBase + "00");
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(A.x, A.y, r * 4 * glow, 0, Math.PI * 2); ctx.fill();
 
-  ctx.beginPath();
-  ctx.fillStyle = colorBase;
-  ctx.shadowColor = colorBase;
-  ctx.shadowBlur = 10;
-  ctx.arc(A.x, A.y, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  ctx.beginPath(); ctx.fillStyle = colorBase; ctx.shadowColor = colorBase; ctx.shadowBlur = 10;
+  ctx.arc(A.x, A.y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
 
-  // anillo de "recien llegado" durante los primeros segundos de vida
   if (edad < 2200) {
     const p = edad / 2200;
     ctx.beginPath();
     ctx.strokeStyle = colorBase + Math.round((1 - p) * 255).toString(16).padStart(2, "0");
-    ctx.lineWidth = 2;
-    ctx.arc(A.x, A.y, r + p * 22, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.lineWidth = 2; ctx.arc(A.x, A.y, r + p * 22, 0, Math.PI * 2); ctx.stroke();
   }
 }
 
 function loop(t) {
-  ctx.fillStyle = "rgba(3,5,3,0.35)"; // estela suave (trail) en vez de limpiar todo
+  ctx.fillStyle = "rgba(3,5,3,0.35)";
   ctx.fillRect(0, 0, W, H);
-
   actualizarFisica();
-
   hifasActivas.forEach(h => {
     const A = nodos[h.a], B = nodos[h.b];
     if (!A || !B) return;
-    h.part += 0.003;
-    if (h.part > 1) h.part = 0;
+    h.part += 0.003; if (h.part > 1) h.part = 0;
     dibujarHifa(A, B, h.part);
   });
-
   Object.values(nodos).forEach(n => dibujarNodo(n, t));
-
   requestAnimationFrame(loop);
 }
 
 // ---------------------------------------------------------------------
-// Tooltip (hover en desktop, tap en movil)
+// Tap sobre un nodo -> abrir perfil (radio de toque generoso para dedo)
 // ---------------------------------------------------------------------
-const tooltip = document.getElementById('tooltip');
 function nodoEnPosicion(x, y) {
-  return Object.values(nodos).find(n => {
+  let mejor = null, mejorDist = Infinity;
+  Object.values(nodos).forEach(n => {
     const dx = n.x - x, dy = n.y - y;
-    return Math.sqrt(dx * dx + dy * dy) < n.radio + 6;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < n.radio + 18 && dist < mejorDist) { mejor = n; mejorDist = dist; }
+  });
+  return mejor;
+}
+
+let huboPrimerToque = false;
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const n = nodoEnPosicion(e.clientX - rect.left, e.clientY - rect.top);
+  if (n) { abrirPerfil(n); ocultarHint(); }
+});
+
+const hintEl = document.getElementById('hint');
+function mostrarHintSiHaceFalta() {
+  if (huboPrimerToque || Object.keys(nodos).length === 0) return;
+  hintEl.classList.add('visible');
+}
+function ocultarHint() { huboPrimerToque = true; hintEl.classList.remove('visible'); }
+setTimeout(mostrarHintSiHaceFalta, 1800);
+setTimeout(ocultarHint, 12000);
+
+// ---------------------------------------------------------------------
+// Hoja de perfil
+// ---------------------------------------------------------------------
+const backdrop = document.getElementById('backdrop');
+const hoja = document.getElementById('hoja');
+const elIcono = document.getElementById('perfilIcono');
+const elNombre = document.getElementById('perfilNombre');
+const elSubtipo = document.getElementById('perfilSubtipo');
+const elDatos = document.getElementById('perfilDatos');
+const elCanciones = document.getElementById('listaCanciones');
+const elMensajes = document.getElementById('listaMensajes');
+const elNumMensajes = document.getElementById('numMensajes');
+const form = document.getElementById('formMensaje');
+const inputAutor = document.getElementById('inputAutor');
+const inputTexto = document.getElementById('inputTexto');
+const contadorChars = document.getElementById('contadorChars');
+const btnEnviar = document.getElementById('btnEnviar');
+const estadoEnvio = document.getElementById('estadoEnvio');
+
+let claveAbierta = null;
+
+function crearChip(html) {
+  const div = document.createElement('div');
+  div.className = 'chip';
+  div.innerHTML = html;
+  return div;
+}
+
+function abrirPerfil(nodo) {
+  claveAbierta = nodo.clave;
+  const d = nodo.datos || {};
+  const color = colorArquetipo(nodo.arquetipo);
+  document.documentElement.style.setProperty('--acento', color);
+
+  elIcono.textContent = (d.nombre || "?").trim().charAt(0).toUpperCase();
+  elNombre.textContent = d.nombre || "Anonimo";
+  const nombreSub = NOMBRES_SUBTIPO[d.subtipoIndex] || "";
+  elSubtipo.textContent = `${nombreSub} · ${NOMBRE_ARQUETIPO[nodo.arquetipo] || ""}`;
+
+  elDatos.innerHTML = "";
+  if (d.pais) elDatos.appendChild(crearChip(`${banderaEmoji(d.pais)} <b>${d.pais}</b>`));
+  if (d.cuenta) elDatos.appendChild(crearChip(`${d.cuenta === "Premium" ? "★" : "♪"} <b>${d.cuenta}</b>`));
+  if (d.seguidores) elDatos.appendChild(crearChip(`👥 <b>${d.seguidores}</b> seguidores`));
+
+  elCanciones.innerHTML = "";
+  const top = (d.topCanciones && d.topCanciones.length) ? d.topCanciones : (d.cancion ? [{cancion: d.cancion, artista: d.artista}] : []);
+  if (top.length === 0) {
+    elCanciones.innerHTML = '<div id="sinMensajes">Sin datos de escucha</div>';
+  } else {
+    top.forEach((c, i) => {
+      const fila = document.createElement('div');
+      fila.className = 'filaCancion';
+      const num = document.createElement('div'); num.className = 'num'; num.textContent = (i + 1) + '.';
+      const info = document.createElement('div'); info.className = 'info';
+      const eCancion = document.createElement('div'); eCancion.className = 'cancion'; eCancion.textContent = c.cancion || "";
+      const eArtista = document.createElement('div'); eArtista.className = 'artista'; eArtista.textContent = c.artista || "";
+      info.appendChild(eCancion); info.appendChild(eArtista);
+      fila.appendChild(num); fila.appendChild(info);
+      elCanciones.appendChild(fila);
+    });
+  }
+
+  renderizarMensajes();
+  estadoEnvio.textContent = "";
+  inputTexto.value = ""; actualizarContadorChars();
+
+  backdrop.classList.add('visible');
+  hoja.classList.add('visible');
+}
+
+function cerrarPerfil() {
+  backdrop.classList.remove('visible');
+  hoja.classList.remove('visible');
+  claveAbierta = null;
+}
+document.getElementById('cerrar').addEventListener('click', cerrarPerfil);
+backdrop.addEventListener('click', cerrarPerfil);
+
+function actualizarContadorChars() {
+  contadorChars.textContent = 240 - inputTexto.value.length;
+}
+inputTexto.addEventListener('input', actualizarContadorChars);
+
+// ---------------------------------------------------------------------
+// Mensajes: guardados en /mensajes/{clave}/{idAuto}, transmitidos en
+// vivo igual que los nodos (streaming, sin polling)
+// ---------------------------------------------------------------------
+let mensajesPorClave = {};
+
+function renderizarMensajes() {
+  const lista = mensajesPorClave[claveAbierta] || {};
+  const items = Object.values(lista).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  elNumMensajes.textContent = items.length ? `(${items.length})` : "";
+  elMensajes.innerHTML = "";
+  if (items.length === 0) {
+    elMensajes.innerHTML = '<div id="sinMensajes">Nadie le ha dejado un mensaje todavia. Se el primero ✦</div>';
+    return;
+  }
+  items.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'mensaje';
+    const autor = document.createElement('div'); autor.className = 'autor'; autor.textContent = m.autor || "Anonimo";
+    const texto = document.createElement('div'); texto.className = 'texto'; texto.textContent = m.texto || "";
+    const fecha = document.createElement('div'); fecha.className = 'fecha'; fecha.textContent = tiempoRelativo(m.ts);
+    div.appendChild(autor); div.appendChild(texto); div.appendChild(fecha);
+    elMensajes.appendChild(div);
   });
 }
-function mostrarTooltip(n, clientX, clientY) {
-  if (!n) { tooltip.style.display = 'none'; return; }
-  tooltip.style.display = 'block';
-  tooltip.style.left = Math.min(clientX + 14, window.innerWidth - 230) + "px";
-  tooltip.style.top = Math.max(clientY - 10, 10) + "px";
-  tooltip.innerHTML = `<b>${n.nombre}</b><br><span class="arq">${NOMBRE_ARQUETIPO[n.arquetipo]}</span>` +
-    (n.cancion ? `<br>&#9834; ${n.cancion}${n.artista ? " — " + n.artista : ""}` : "");
-}
-canvas.addEventListener('mousemove', e => mostrarTooltip(nodoEnPosicion(e.clientX, e.clientY), e.clientX, e.clientY));
-canvas.addEventListener('touchstart', e => {
-  const t = e.touches[0];
-  mostrarTooltip(nodoEnPosicion(t.clientX, t.clientY), t.clientX, t.clientY);
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  const texto = inputTexto.value.trim();
+  if (!texto || !claveAbierta) return;
+
+  btnEnviar.disabled = true;
+  estadoEnvio.textContent = "Enviando...";
+
+  const payload = {
+    texto: texto.slice(0, 240),
+    autor: (inputAutor.value.trim() || "Anonimo").slice(0, 24),
+    ts: { ".sv": "timestamp" }
+  };
+
+  try {
+    const resp = await fetch(`${FIREBASE_BASE}/mensajes/${claveAbierta}.json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    inputTexto.value = ""; inputAutor.value = "";
+    actualizarContadorChars();
+    estadoEnvio.textContent = "Mensaje enviado ✦";
+  } catch (err) {
+    estadoEnvio.textContent = "Error al enviar, intenta de nuevo";
+  } finally {
+    btnEnviar.disabled = false;
+  }
 });
 
 // ---------------------------------------------------------------------
-// Conexion en vivo a Firebase via Server-Sent Events (streaming REST,
-// sin necesidad del SDK de Firebase): recibe cada alta/actualizacion
-// de nodo en tiempo real, sin hacer polling.
+// Streaming en vivo (Server-Sent Events sobre la REST API de Firebase,
+// sin SDK): un stream para los nodos, otro para los mensajes.
 // ---------------------------------------------------------------------
 const estadoEl = document.getElementById('estadoConexion');
 const contadorEl = document.getElementById('numPersonas');
+function actualizarContador() { contadorEl.textContent = Object.keys(nodos).length; }
 
-function actualizarContador() {
-  contadorEl.textContent = Object.keys(nodos).length;
-}
-
-function iniciarStream() {
-  const es = new EventSource(FIREBASE_URL + ".json");
-
+function iniciarStreamConstelacion() {
+  const es = new EventSource(FIREBASE_BASE + "/constelacion.json");
   es.addEventListener('put', e => {
     try {
       const datos = JSON.parse(e.data);
       if (datos.path === "/") {
-        // Carga inicial completa: datos.data = { clave: {...}, clave: {...} }
-        if (datos.data) {
-          Object.keys(datos.data).forEach(clave => crearONodo(clave, datos.data[clave]));
-        }
+        if (datos.data) Object.keys(datos.data).forEach(clave => crearONodo(clave, datos.data[clave]));
       } else {
-        // Alta o actualizacion de UN nodo: datos.path = "/clave"
         const clave = datos.path.replace("/", "");
         if (clave && datos.data) crearONodo(clave, datos.data);
       }
       reconstruirHifas();
       actualizarContador();
-    } catch (err) { console.error("Error procesando evento:", err); }
+      mostrarHintSiHaceFalta();
+    } catch (err) { console.error(err); }
   });
-
   es.addEventListener('patch', e => {
     try {
       const datos = JSON.parse(e.data);
       const clave = datos.path.replace("/", "");
-      if (clave && nodos[clave] && datos.data) {
-        Object.assign(nodos[clave], datos.data);
+      if (clave && nodos[clave] && datos.data) Object.assign(nodos[clave].datos, datos.data);
+    } catch (err) { console.error(err); }
+  });
+  es.onopen = () => { estadoEl.textContent = "en vivo"; estadoEl.style.color = "#7dffb0"; };
+  es.onerror = () => { estadoEl.textContent = "reconectando..."; estadoEl.style.color = "#c9a35a"; };
+}
+
+function iniciarStreamMensajes() {
+  const es = new EventSource(FIREBASE_BASE + "/mensajes.json");
+  es.addEventListener('put', e => {
+    try {
+      const datos = JSON.parse(e.data);
+      if (datos.path === "/") {
+        mensajesPorClave = datos.data || {};
+      } else {
+        const partes = datos.path.split("/").filter(Boolean); // [clave, idMensaje] o [clave]
+        const clave = partes[0];
+        if (!clave) return;
+        if (partes.length === 1) {
+          mensajesPorClave[clave] = datos.data || {};
+        } else {
+          mensajesPorClave[clave] = mensajesPorClave[clave] || {};
+          mensajesPorClave[clave][partes[1]] = datos.data;
+        }
+      }
+      if (claveAbierta) renderizarMensajes();
+    } catch (err) { console.error(err); }
+  });
+  es.addEventListener('patch', e => {
+    try {
+      const datos = JSON.parse(e.data);
+      const partes = datos.path.split("/").filter(Boolean);
+      const clave = partes[0];
+      if (clave && partes.length === 1 && datos.data) {
+        mensajesPorClave[clave] = Object.assign(mensajesPorClave[clave] || {}, datos.data);
+        if (claveAbierta === clave) renderizarMensajes();
       }
     } catch (err) { console.error(err); }
   });
-
-  es.onopen = () => { estadoEl.textContent = "en vivo"; estadoEl.style.color = "#7dffb0"; };
-  es.onerror = () => {
-    estadoEl.textContent = "reconectando...";
-    estadoEl.style.color = "#c9a35a";
-  };
 }
 
-iniciarStream();
+iniciarStreamConstelacion();
+iniciarStreamMensajes();
 requestAnimationFrame(loop);
 </script>
 </body>
